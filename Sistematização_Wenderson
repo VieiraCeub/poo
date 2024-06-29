@@ -1,0 +1,105 @@
+python -m venv venv
+source venv/bin/activate  # No Windows use `venv\Scripts\activate`
+pip install Flask Flask-MySQLdb Flask-SQLAlchemy
+employee_api/
+├── app.py
+├── config.py
+├── models.py
+└── requirements.txt
+# config.py
+import os
+
+class Config:
+    SQLALCHEMY_DATABASE_URI = 'mysql://username:password@localhost/employee_db'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+# models.py
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+class Employee(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    age = db.Column(db.Integer, nullable=False)
+    department = db.Column(db.String(120), nullable=False)
+# app.py
+from flask import Flask, request, jsonify
+from config import Config
+from models import db, Employee
+
+app = Flask(__name__)
+app.config.from_object(Config)
+db.init_app(app)
+
+@app.route('/employees', methods=['POST'])
+def add_employee():
+    data = request.get_json()
+    new_employee = Employee(
+        name=data['name'],
+        age=data['age'],
+        department=data['department']
+    )
+    db.session.add(new_employee)
+    db.session.commit()
+    return jsonify({'message': 'Employee added successfully'}), 201
+
+@app.route('/employees', methods=['GET'])
+def get_employees():
+    employees = Employee.query.all()
+    return jsonify([{
+        'id': emp.id,
+        'name': emp.name,
+        'age': emp.age,
+        'department': emp.department
+    } for emp in employees])
+
+@app.route('/employees/<int:id>', methods=['GET'])
+def get_employee(id):
+    employee = Employee.query.get_or_404(id)
+    return jsonify({
+        'id': employee.id,
+        'name': employee.name,
+        'age': employee.age,
+        'department': employee.department
+    })
+
+@app.route('/employees/<int:id>', methods=['PUT'])
+def update_employee(id):
+    data = request.get_json()
+    employee = Employee.query.get_or_404(id)
+    employee.name = data['name']
+    employee.age = data['age']
+    employee.department = data['department']
+    db.session.commit()
+    return jsonify({'message': 'Employee updated successfully'})
+
+@app.route('/employees/<int:id>', methods=['PATCH'])
+def partial_update_employee(id):
+    data = request.get_json()
+    employee = Employee.query.get_or_404(id)
+    if 'name' in data:
+        employee.name = data['name']
+    if 'age' in data:
+        employee.age = data['age']
+    if 'department' in data:
+        employee.department = data['department']
+    db.session.commit()
+    return jsonify({'message': 'Employee partially updated successfully'})
+
+@app.route('/employees/<int:id>', methods=['DELETE'])
+def delete_employee(id):
+    employee = Employee.query.get_or_404(id)
+    db.session.delete(employee)
+    db.session.commit()
+    return jsonify({'message': 'Employee deleted successfully'})curl -X PUT http://127.0.0.1:5000/employees/1 -H "Content-Type: application/json" -d '{"name":"Jane Doe", "age":25, "department":"Marketing"}'
+curl -X PATCH http://127.0.0.1:5000/employees/1 -H "Content-Type: application/json" -d '{"age":28}'
+curl -X DELETE http://127.0.0.1:5000/employees/1
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
+CREATE DATABASE employee_db;
+python app.py
+curl -X POST http://127.0.0.1:5000/employees -H "Content-Type: application/json" -d '{"name":"John Doe", "age":30, "department":"Engineering"}'
+curl http://127.0.0.1:5000/employees
+curl http://127.0.0.1:5000/employees/1
